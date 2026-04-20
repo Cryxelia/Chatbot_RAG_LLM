@@ -4,7 +4,10 @@ This is one of my projects from my LIA and the purpose of this project was to te
 
 
 ## How to start the app local
-1. This repo has been tested with python version `3.11.9`. So download Python `3.11` [https://www.python.org/downloads/]
+1. This repo has been tested with python version `3.11.9`. So download Python `3.11` https://www.python.org/downloads/ for yor plattfor
+2. execute the .exe file and make sure to select the option to add Python to your PATH environment variable during the installation process.
+3. After the installation is complete, open the command prompt or terminal and type the following command: `python --version`
+4. Use the IDE you are ccomftable with 
 1. Colne the project with `git clone [repo name]`
 2. Create venv with `python -m vemv venv` in the python folder
 3. Activate venv with `venv\Scripts\activate` on windows or `source venv/bin/activate`on macOS/Linux
