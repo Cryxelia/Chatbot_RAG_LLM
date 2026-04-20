@@ -1,8 +1,10 @@
 ﻿# chatbot_with_history_login
 This is one of my projects from my LIA and the purpose of this project was to test build a chatbot that could save conversations. But it dosent't include a real login with security. The login is just for test to save a conversation for a user. The chatbot is a RAG-LLM which also has a long-term and short-term memory. The source document for the RAG is "Statliga värdegrunden" and another document containing some excerices to implement "Statliga värdegrunden".
- 
+
+
 
 ## How to start the app local
+1. This repo has been tested with python version `3.11.9`. So download Python `3.11` [https://www.python.org/downloads/]
 1. Colne the project with `git clone [repo name]`
 2. Create venv with `python -m vemv venv` in the python folder
 3. Activate venv with `venv\Scripts\activate` on windows or `source venv/bin/activate`on macOS/Linux
