@@ -1,0 +1,81 @@
+{% extends "base_chat.html" %}
+{% load static %}
+
+{% block chat_content %}
+<div class="chat-page">
+    <button id="toggle-sidebar" class="toggle-sidebar">☰</button>
+
+    <aside id="conversation-sidebar" class="sidebar">
+        <h3>Tidigare konversationer</h3>
+        <div class="sidebar-scroll-wrapper">
+            <ul id="conversation-list">
+                {% for conv in conversations %}
+                <li data-chat-id="{{ conv.id }}" class="conversation-item">
+                    <li class="conversation-item"></li>
+                        <span class="conversation-title">{{ conv.title }}</span>
+                        <button class="menu-btn">⋮</button>
+                        <div class="menu-dropdown hidden">
+                            <button class="archive-btn" data-chat-id="{{ conv.id }}">Arkivera</button>
+                            <button class="delete-btn" data-chat-id="{{ conv.id }}">Radera</button>
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+                {% if request.user.is_authenticated %}
+                    <h3>Arkiverade konversationer</h3>
+                    <ul id="archived-list"></ul>
+                {% endif %}
+        </div>
+        <div class="sidebar-footer">
+            <p class="logged-in">
+                Du är {% if request.user.is_authenticated %} inloggad {% else %} utloggad {% endif %}
+            </p>
+            {% if request.user.is_authenticated %}
+                <form method="post" action="{% url 'logout' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="auth-button">Logga ut</button>
+                </form>
+            {% else %}
+                <a href="{% url 'login' %}" class="auth-button">Logga in</a>
+            {% endif %}
+        </div>
+    </aside>
+    
+    <div class="chat-main">
+        <div class="chat-head">
+            <h3>Coachen</h3>
+            <p>Börja med en fråga nedan eller skriv din egen</p>
+            <button id="new-conversation" class="new-conversation">Ny konversation</button>
+        </div>
+
+        <div id="chat-container" class="chat-container">
+            {% for msg in history %}
+                {% include "message.html" %}
+            {% endfor %}
+        </div>
+
+        <div id="question-container" class="question-container hidden">
+            {% for question in questions %}
+              <button class="question" data-question="{{ question }}">{{ question }}</button>
+            {% endfor %}
+        </div>
+
+        <form id="chat-form" class="chat-form" method="post" action="">
+            {% csrf_token %}
+            <textarea
+                name="message"
+                class="message-input"
+                id="message-input"
+                placeholder="Skriv din fråga här"
+                required
+                rows="1"
+            ></textarea>
+            <button type="submit" class="send-button" id="send-button">
+                <img src="{% static 'icons/send.svg' %}" alt="Skicka" />
+            </button>
+        </form>
+    </div>
+</div>
+
+{% endblock %}

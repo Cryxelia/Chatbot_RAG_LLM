@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles.css' %}">
+{% endblock %}
+
+{% block content %}
+<main class="chat-layout">
+  {% block chat_content %}{% endblock %}
+</main>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'script.js' %}" defer></script>
+<script>
+    window.IS_AUTHENTICATED = "{{ request.user.is_authenticated }}" === "True";
+</script>
+
+{% endblock %}

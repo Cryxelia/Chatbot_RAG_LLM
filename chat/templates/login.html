@@ -1,0 +1,24 @@
+{% extends "base_auth.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block auth_content %}
+
+<section>
+
+    <h2>Logga in</h2>
+
+    <form class="login_form" method="post">
+        {% csrf_token %}
+        <input type="text"  name="username" placeholder="Användarnamn">
+        <input type="password" name="password" placeholder="Lösenord"  required="true">
+        <button type="submit" class="submit-btn">logga in</button>
+    </form>
+
+    <div class="auth-links">
+        <a href="{% url 'register' %}">Registrera dig här</a>
+        <a href="{% url 'chat' %}">Tillbaka till chatten</a>
+    </div>
+</section>
+
+{% endblock %}

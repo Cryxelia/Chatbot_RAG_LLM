@@ -1,0 +1,13 @@
+{% load static %}
+<div
+  class="message-block {% if message.user == 'user' %}message-user{% endif %}"
+>
+  <div class="message-component message-head">
+    <p class="message-source">
+      {% if message.user == 'user' %}Du{% else %}Lexicompis{% endif %}
+    </p>
+    <p class="message-timestamp">{{ message.created_at }}</p>
+  </div>
+  <div class="message-component message-content">{{ message.message|safe }}</div>
+</div>
+
