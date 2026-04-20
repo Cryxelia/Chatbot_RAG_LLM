@@ -2,6 +2,8 @@ from pathlib import Path
 import  os
 from dotenv import load_dotenv
 
+SECRET_KEY = os.getenv("SECRET_KEY")
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 TEMPLATES_DIR = BASE_DIR / 'templates'
@@ -44,6 +46,8 @@ CSRF_TRUSTED_ORIGINS = [
     'https://lms.mil.se',
     'https://scorm.itslearning.net',
     'https://fm.itslearning.net',        'https://lexiconplay.se',        'https://hosting.lexiconinteractive.se',        'https://www.lexiconplay.se',
+    'http://lexiconinteractive.com',
+    'https://lexiconinteractive.com', 'https://lexiconinteractive.se',
 ]
 
 CORS_ALLOWED_ORIGINS = [
@@ -55,6 +59,8 @@ CORS_ALLOWED_ORIGINS = [
     'https://lms.mil.se',
     'https://scorm.itslearning.net',
     'https://fm.itslearning.net',        'https://lexiconplay.se',        'https://hosting.lexiconinteractive.se',        'https://www.lexiconplay.se',
+    'http://lexiconinteractive.com',
+    'https://lexiconinteractive.com', 'https://lexiconinteractive.se',
 ]
 CORS_ALLOW_METHODS = [    'GET',    'POST',    'OPTIONS',]
 CORS_ALLOW_CREDENTIALS = True
@@ -114,19 +120,32 @@ TEMPLATES = [
 WSGI_APPLICATION = 'project.wsgi.application'
 
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'chat_app_db',
-        'USER': 'root',
-        'PASSWORD' :  'root',
-        'HOST' : 'localhost',
-        'PORT' : '3306',
-        'OPTIONS': {
+if ENV == "production":
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': os.getenv("DB_NAME"),
+            'USER': os.getenv("DB_USER"),
+            'PASSWORD': os.getenv("DB_PASSWORD"),
+            'HOST': os.getenv("DB_HOST"),
+            'PORT': '3306',
+            'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        },
+            },
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.mysql',
+            'NAME': 'save_chat_db',
+            'USER': 'root',
+            'PASSWORD': os.getenv("LOCAL_DB_PW"),
+            'HOST': 'localhost',
+            'PORT': '3306',
+        }
+    }
+
 
 
 AUTH_PASSWORD_VALIDATORS = [
