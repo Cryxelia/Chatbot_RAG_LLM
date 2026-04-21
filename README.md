@@ -4,7 +4,8 @@ This is one of my projects from my LIA and the purpose of this project was to te
 ## Requirements
 Python
 Tested with python version `3.11.9` but others may work
-you also need to have Qdrant vector database and openai key
+For this project you need to have MySQL Workbench 8.0
+You also need to have Qdrant vector database and openai key
 
 
 ## How to start the app local
@@ -16,8 +17,8 @@ you also need to have Qdrant vector database and openai key
 6. Add `QDRANT_API_KEY` to your `.env` file for the Qdrant vector database.
 7. You also have to add `QDRANT_URL`, `QDRANT_COLLECTION` and `SECRET_KEY` to the `.env` file
 8. Then you have to set `LOCAL_DB_PW` and add to the `.env`
-9. 
-10. Sometimes you also have to migrate the database. To migrate use the comand `python manage.py makemigrations` and `python manage.py migrate`.
+9. Open MySQL workbench to create a database for you project with the comand `CREATE SCHEMA 'your_database_name';`
+10. You also have to migrate the database. To migrate use the comand `python manage.py makemigrations` and `python manage.py migrate`.
 
 ### Running the app local
 Start the app with `python manage.py runserver`
