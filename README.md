@@ -10,7 +10,7 @@ you also need to have Qdrant vector database and openai key
 ## How to start the app local
 1. Clone the project with `git clone [repo name]`
 2. Create venv with `python -m venv venv` in the python folder
-3. Activate venv with `venv\Scripts\activate` on windows or `source venv/bin/activate`on macOS/Linux
+3. Use the terminal to activate venv with `venv\Scripts\activate` on windows or `source venv/bin/activate`on macOS/Linux
 4. Install dependencies with `pip install -r requirements.txt`
 5. Create an `.env` file with yor api key for OpenAI in the root of the project and create `OPENAI_API_KEY` variable with your key
 6. Add `QDRANT_API_KEY` to your `.env` file for the Qdrant vector database.
