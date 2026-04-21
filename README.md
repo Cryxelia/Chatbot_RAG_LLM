@@ -6,7 +6,7 @@ Python
 Tested with python version `3.11.9` but others may work
 
 ## How to start the app local
-1. Colne the project with `git clone [repo name]`
+1. Clone the project with `git clone [repo name]`
 2. Create venv with `python -m vemv venv` in the python folder
 3. Activate venv with `venv\Scripts\activate` on windows or `source venv/bin/activate`on macOS/Linux
 4. Install dependencies with `pip install -r requirements.txt`
