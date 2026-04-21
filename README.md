@@ -1,13 +1,11 @@
 ﻿# chatbot_RAG_LLM
 This is one of my projects from my LIA and the purpose of this project was to test build a chatbot that could save conversations. But it dosent't include a real login with security. The login is just for test to save a conversation for a user. The chatbot is a RAG-LLM which also has a long-term and short-term memory. The source document for the RAG is "Statliga värdegrunden" and another document containing some excerices to implement "Statliga värdegrunden".
 
-
+## Requirements
+Python
+Tested with python version `3.11.9` but others may work
 
 ## How to start the app local
-1. This repo has been tested with python version `3.11.9`. So download Python `3.11` https://www.python.org/downloads/ for yor plattfor
-2. execute the `.exe` file and make sure to select the option to add Python to your PATH environment variable during the installation process.
-3. After the installation is complete, open the command prompt or terminal and type the following command: `python --version`
-4. Use the IDE you are comftable with 
 1. Colne the project with `git clone [repo name]`
 2. Create venv with `python -m vemv venv` in the python folder
 3. Activate venv with `venv\Scripts\activate` on windows or `source venv/bin/activate`on macOS/Linux
