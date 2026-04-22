@@ -3,9 +3,9 @@ This is one of my projects from my LIA and the purpose of this project was to te
 
 ## Requirements
 Python
-Tested with python version `3.11.9` but others may work
+Tested with python version `3.11.9` but others may work.
 For this project you need to have MySQL Workbench 8.0
-You also need to have Qdrant vector database and openai key
+You also need to have a [openai key](https://platform.openai.com/api-keys) and a qdrant api key which you can get for free by register on their [website](https://login.cloud.qdrant.io/u/login/identifier?state=hKFo2SBteGphQTRrdnFDLWU5UmY3NnlHUEpwSEltWEF0UkV3VaFur3VuaXZlcnNhbC1sb2dpbqN0aWTZIHNHRU12RkxobmhDWTJ5UUJQT2dHcGJMZlhtRDZSTk9io2NpZNkgckkxd2NPUEhPTWRlSHVUeDR4MWtGMEtGZFE3d25lemc)
 
 
 ## How to start the app local
