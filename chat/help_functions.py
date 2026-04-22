@@ -8,6 +8,8 @@ from .models import RagFileState
 
 logger = logging.getLogger("rag")
 
+STATE_FILE = os.path.join(os.path.dirname(__file__), "file_state.json")
+
 def retry_api_call(func, *args, retries=5, base_delay=1, max_delay=30, **kwargs):
 
     for attempt in range(1, retries + 1): # Loop  through the number of attempts

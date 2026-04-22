@@ -1,37 +1,45 @@
-from qdrant_client import QdrantClient
-from qdrant_client.http.models import VectorParams, Distance
+from dotenv import load_dotenv
 from django.conf import settings
+import requests
 from openai import OpenAI
-import logging
 import time
+import logging
 import os
-
 
 logger = logging.getLogger("rag")
 
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION")
-HOST = QDRANT_URL.replace("https://", "").replace("http://", "") # remove http:// and https:// from the URL 
+VERIFY = "/etc/pki/tls/certs/ca-bundle.crt"  # CPanel cert bundle
+HEADERS = {
+    "Authorization": f"Bearer {QDRANT_API_KEY}",
+    "Content-Type": "application/json"
+}
 
-
-qdrant_client =  QdrantClient( #Initializes Qdrant client via REST
-    url=QDRANT_URL,
-    api_key=QDRANT_API_KEY,
-    prefer_grpc=False,
-)
+INIT_DONE = False
 
 openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 def create_collection(collection_name, dim):
     from .help_functions import retry_api_call
-    def _create():      # _ means its a protected function and shouldn't be used outside it's context
-        qdrant_client.create_collection(
-            collection_name=collection_name,
-            vectors_config = VectorParams(size=dim, distance=Distance.COSINE), # Checking if the dimensions match
-            timeout=60
-        )
-        logger.info(f"Collection '{collection_name}' skapad.")
+
+    def _create():     # _ means its a protected function and shouldn't be used outside it's context
+        url = f"{QDRANT_URL}/collections/{collection_name}"
+        payload = {
+            "vectors": {
+                "default": {"size": dim, "distance": "Cosine"}
+            }
+        }
+
+        r = requests.put(url, json=payload, headers=HEADERS, verify=VERIFY)
+
+        if r.status_code == 409:
+            logger.info(f"Collection '{collection_name}' finns redan.")
+            return True
+
+        r.raise_for_status()
+        logger.info(f"Collection '{collection_name}' skapad via REST.")
         return True
 
     return retry_api_call(_create, retries=5)
@@ -49,52 +57,98 @@ def get_embedding(text, model="text-embedding-3-small"):
         emb = retry_api_call(_call_embedding, retries=5)
         if emb is None:
             logger.error("Embedding misslyckades efter retries.")
+
+        if not isinstance(emb, list):
+            emb = emb.tolist()  # om det är np.array
+        if not all(isinstance(x, float) for x in emb):
+            emb = [float(x) for x in emb]
+        
+        logger.info(f"Vector length: {len(emb)}")
         return emb
     except Exception as e:
         logger.error(f"Fel vid embedding: {e}")
         return None
 
 
+
 def init_collection():
-    test_emb = get_embedding("dimension check") # dynamically determine embedding dimension
+    global INIT_DONE, EMBEDDING_DIM
+
+    if INIT_DONE:
+        return QDRANT_COLLECTION, EMBEDDING_DIM  
+
+    logger.info("Initierar Qdrant collection...")
+
+    test_emb = get_embedding("dimension check") # Set dimension on vector
     if not test_emb:
         raise ValueError("Embedding misslyckades vid initiering av collection!")
     
-    dim = len(test_emb)
+    EMBEDDING_DIM = len(test_emb)
     
-    existing_collections = [c.name for c in qdrant_client.get_collections().collections] # Get all existing collections
+    create_collection(QDRANT_COLLECTION, EMBEDDING_DIM)
 
-    if QDRANT_COLLECTION not in existing_collections:
-        create_collection(QDRANT_COLLECTION, dim)
+    r = requests.get(
+        f"{QDRANT_URL}/collections/{QDRANT_COLLECTION}",
+        headers=HEADERS,
+        verify=VERIFY
+    )
 
-        for _ in range(10):       # Waiting until Qdrant has registered the vector field correctly
-            info = qdrant_client.get_collection(QDRANT_COLLECTION)
-            vectors_info = info.config.params.vectors
+    r.raise_for_status()
+    vectors_info = r.json()["result"]["config"]["params"]["vectors"]
 
-            # A protection against Qdrant being able to return different formats depending on version
-            if isinstance(vectors_info, dict) and "vector" in vectors_info:
-                break
-            elif isinstance(vectors_info, VectorParams):
-                break
-            time.sleep(1)
-        else:
-            raise RuntimeError("Vector field 'vector' registrerades inte på servern!")
-
-    
-    # Final verification of dimension
-    info = qdrant_client.get_collection(QDRANT_COLLECTION)
-    
-    vectors_info = info.config.params.vectors
     if isinstance(vectors_info, dict):
-        stored_dim = list(vectors_info.values())[0].size
-    elif isinstance(vectors_info, VectorParams):
-        stored_dim = vectors_info.size
+        stored_dim = list(vectors_info.values())[0]["size"]
     else:
-        raise ValueError("Okänt format på vectors")
-
-    if stored_dim != dim:
-        raise ValueError(f"Dimension mismatch! Collection={stored_dim}, Embedding={dim}")
+        raise ValueError("Unknown format of vector")
+   
+    if stored_dim != EMBEDDING_DIM:
+        raise ValueError(f"Dimension mismatch! Collection={stored_dim}, Embedding={EMBEDDING_DIM}")
     
-    return QDRANT_COLLECTION
+    INIT_DONE = True
+    
+    return QDRANT_COLLECTION, EMBEDDING_DIM   
 
+def query_vectors(vector, top_k=15):
 
+    url = f"{QDRANT_URL}/collections/{QDRANT_COLLECTION}/points/search"
+
+    if not vector:
+        logger.error("query_vectors fick None vector")
+        return []
+
+    payload = {
+        "vector": {
+            "name": "default", 
+            "vector": vector
+        },
+        "limit": top_k,
+        "with_payload": True
+    }
+
+    try:
+        r = requests.post(url, json=payload, headers=HEADERS, verify=VERIFY)
+
+        try:
+            r.raise_for_status()
+        except Exception:
+            logger.error(f"Qdrant search error: {r.status_code} {r.text}")
+            return []
+
+        result = r.json().get("result", [])
+
+        points = []
+        for item in result:
+            point = {
+                "id": item.get("id"),
+                "payload": item.get("payload"),
+                "score": item.get("score")  
+            }
+            points.append(point)
+
+        logger.info(f"Search returnerade {len(points)} resultat")
+
+        return points
+
+    except Exception as e:
+        logger.error(f"Fel vid query_vectors: {e}")
+        return []

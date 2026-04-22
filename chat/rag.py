@@ -1,67 +1,80 @@
-
+import requests
+import uuid
 import os
 from .chunking import process_pdf_to_chunks
 import datetime
-from .help_functions import hash_chunk, load_file_state, save_file_state, compute_file_hash, retry_api_call
+from .help_functions import hash_chunk, load_file_state, save_file_state, compute_file_hash, retry_api_call, STATE_FILE
 import logging
-import time
-from django.db import transaction
+from .qdrant_settings import init_collection, QDRANT_URL, HEADERS, VERIFY, query_vectors
 
 logger = logging.getLogger("rag")
 
-def batch_upsert(collection_name, vectors, batch_size=200):
+VECTOR_STORE_NAME = "rag_store"
+VECTOR_STORE_NAMESPACE = "pdf_chunks"
+EMBEDDING_DIM = None
+
+def upsert_vectors(collection_name, vectors):
+    """Upsert vectors via REST"""
+    if not vectors:
+        return
+
+    url = f"{QDRANT_URL}/collections/{collection_name}/points?wait=true"
+    payload = {"points": vectors}
+    r = requests.put(url, json=payload, headers=HEADERS, verify=VERIFY)
+    r.raise_for_status()
+    logger.info(f"Upsert lyckades: {len(vectors)} vectors till {collection_name}")
+    logger.debug(f"Qdrant response: {r.text}")
+    return r.json()
+
+def batch_upsert(collection_name, vectors, batch_size=50):
     """
         This function handels vectors before sending them to the database
         it also ends  the vectors in batches
     """
-    from .qdrant_settings import  qdrant_client
 
-    vectors = [v for v in vectors if v.get("vector") is not None]
+    vectors = [
+        v for v in vectors 
+        if v.get("vectors") and v["vectors"].get("default")
+    ]
     if not vectors:
+        logger.warning("Ingen vektor att upserta, hoppar över batch")
         return
     
-    dim = len(vectors[0]["vector"]) # checking the  diim on the vectors
-    for v in vectors:
-        if len (v["vector"]) != dim:
-            raise ValueError(f"Embedding-dimension mismatch! Förväntad {dim}, fick {len(v['vector'])}")
+    dim = len(vectors[0]["vectors"]["default"])
 
-    for i in range(0, len(vectors), batch_size): # uppload to qdrant in batches
+    for v in vectors:
+        if len(v["vectors"]["default"]) != dim:
+            raise ValueError(
+                 f"Embedding-dimension mismatch! Förväntad {dim}, fick {len(v['vectors']['default'])}"
+            )
+
+    for i in range(0, len(vectors), batch_size):
         batch = vectors[i:i+batch_size]
         for v in batch:
-            logger.info("Upsertar dokument:", v.get("payload"))
+            logger.info(f"Upsertar dokument: {v.get('payload')}")
 
         try:
-            qdrant_client.upsert(
-                collection_name=collection_name,
-                points=batch,
-                wait=True
-            )
+            retry_api_call(upsert_vectors, collection_name, batch, retries=5)
         except Exception as e:
             logger.error(f"Fel vid batch-upsert: {e}")
 
-@transaction.atomic
+
+
 def upload_rag_files_to_vector_store(folder=None,  force_refresh=False):
-    from .qdrant_settings import get_embedding, init_collection, qdrant_client, VectorParams
+    from .qdrant_settings import get_embedding, init_collection
 
     try:
-        collection_name = init_collection()
-        
+        collection_name, embedding_dim = init_collection_safe()
+        global EMBEDDING_DIM
+        EMBEDDING_DIM = embedding_dim
 
-        for _ in range(10):  
-            info = qdrant_client.get_collection(collection_name)
-            vectors_info = info.config.params.vectors
-            if isinstance(vectors_info, dict) and "vector" in vectors_info:
-                break
-            elif isinstance(vectors_info, VectorParams):
-                break
-            time.sleep(1)
-        else:
-            raise RuntimeError("Vector field 'vector' registrerades inte på servern!")
-
+        logger.info(f"Initierad collection: {collection_name}, embedding dimension: {EMBEDDING_DIM}")
         # Default folder if none given
         if folder is None:
             folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"pdf_files")
         if not os.path.exists(folder):
+            logger.info(f"Sökväg för PDF: {folder}")
+            logger.info(f"Filer i folder: {os.listdir(folder)}")
             return []
         
         file_state = load_file_state()
@@ -78,7 +91,13 @@ def upload_rag_files_to_vector_store(folder=None,  force_refresh=False):
                 if filename not in file_state:
                     file_state[filename] = {"file_hash": "", "chunks": {}}
 
-                if file_state[filename]["file_hash"] == file_hash:
+                try:
+                    save_file_state(file_state)
+                    logger.info(f"State-fil sparad: {STATE_FILE}")
+                except Exception as e:
+                    logger.error(f"Misslyckades spara state-fil: {e}")
+
+                if not force_refresh and file_state[filename]["file_hash"] == file_hash:
                     logger.info(f"{filename} har inte ändrats, hoppar över.")
                     continue
 
@@ -97,7 +116,14 @@ def upload_rag_files_to_vector_store(folder=None,  force_refresh=False):
                         if embedding is None:
                             logger.error(f"Embedding misslyckades för chunk: {chunk[:50]}...")
                             continue
+                           
+                        if not all(isinstance(x, float) for x in embedding):
+                            embedding = [float(x) for x in embedding]
 
+                        if len(embedding) != EMBEDDING_DIM:
+                            logger.error(f"Embedding dimension mismatch: {len(embedding)} vs {EMBEDDING_DIM}")
+                            continue
+               
                         file_state[filename]["chunks"][chunk_id] = {
                             "embedding": embedding,
                             "text": chunk["text"],
@@ -106,7 +132,9 @@ def upload_rag_files_to_vector_store(folder=None,  force_refresh=False):
 
                     vectors.append({
                         "id" : chunk_id,
-                        "vector": embedding,
+                        "vectors": {
+                            "default": embedding
+                        },
                         "payload": {
                             "file" : filename,
                             "text" : chunk["text"],
@@ -116,14 +144,14 @@ def upload_rag_files_to_vector_store(folder=None,  force_refresh=False):
                         }
                     })
                 
-                # Upsert to Qdrant in batches
-                batch_size = 200
-                for i in range(0, len(vectors), batch_size):
-                    batch = vectors[i:i+batch_size]
-                    retry_api_call(qdrant_client.upsert, collection_name=collection_name, points=batch, retries=5)
-                    
-                    for r in batch: 
-                        logger.info(f"Returnerar dokument: {r['payload'].get('file')} - chunk id: {r['id']}") 
+                if not vectors:
+                    logger.warning(f"Inga giltiga vectors skapades för fil: {filename}")
+                else: 
+                    # Upsert to Qdrant in batches
+                    batch_upsert(collection_name, vectors)
+
+                for r in vectors: 
+                    logger.info(f"Returnerar dokument: {r['payload'].get('file')} - chunk id: {r['id']}") 
 
                 uploaded_files.append(filename)
 
@@ -139,51 +167,66 @@ def upload_rag_files_to_vector_store(folder=None,  force_refresh=False):
         logger.error(f"Fel vid upload till vector store: {e}")
         return None
 
+def get_embedding_dim():
+    global EMBEDDING_DIM
+    if EMBEDDING_DIM is None:
+        _, EMBEDDING_DIM = init_collection()
+    return EMBEDDING_DIM
 
+def init_collection_safe():
+    from .qdrant_settings import init_collection
+
+    collection_name, embedding_dim = init_collection()
+    if not collection_name or not embedding_dim:
+        raise RuntimeError("Initiering av Qdrant collection misslyckades!")
+    return collection_name, embedding_dim
 
 def get_relevant_chunks(question, top_k=15):
     """
-        creates an embeddinhg of the question and search in the database for similar chunks
-        returns a list with text
+    Creates an embedding of the question and searches in the Qdrant Cloud for similar chunks.
+    Returns a list of dicts with 'text'.
     """
-    from .qdrant_settings import init_collection, get_embedding, qdrant_client
+    from .qdrant_settings import init_collection, get_embedding, QDRANT_URL, HEADERS, VERIFY
+
     try:
-        collection_name = init_collection()
+        collection_name, EMBEDDING_DIM = init_collection_safe()
         if not collection_name:
             logger.error("Ingen collection hittad!")
             return []
-            
-        info = qdrant_client.get_collection(collection_name)
-        if info.points_count == 0:
-            logger.warning("Collection är tom – inga vektorer att söka i.")
+        
+        query_vector = get_embedding(question)
+        if not query_vector or not isinstance(query_vector, list):
+            logger.error(f"Felaktig embedding: {query_vector}")
             return []
 
-        query_vector = get_embedding(question)
-        if query_vector is None:
-            logger.error("Embedding för frågan misslyckades")
+        dim = get_embedding_dim()
+        if not dim:
+            logger.error("ingen dimension hittad")
+            return None
+
+        if len(query_vector) != dim:
+            logger.error(f"Embedding dimension mismatch: {len(query_vector)} vs {dim}")
+            
+        dim = len(query_vector)
+        if dim != EMBEDDING_DIM:
+            logger.error(f"Embedding dimension mismatch: {dim} vs {EMBEDDING_DIM}")
+
+        if len(query_vector) != EMBEDDING_DIM:
+            logger.error("Query embedding dimension mismatch, skippar search")
             return []
-    
-        search_result = qdrant_client.query_points( 
-            collection_name=collection_name,
-            query=query_vector,
-            limit=top_k,
-            with_payload=True,
-            with_vectors=False,
-        )
+
+        results = query_vectors(query_vector, top_k)
 
         chunks = [
-            {
-                "text": point.payload.get("text"),
-                "source_pdf": point.payload.get("source_pdf")  
-            }
-            for point in search_result.points
-            if point.payload and "text" in point.payload
+            {"text": point.get("payload", {}).get("text")}
+            for point in results
+            if point.get("payload") and "text" in point.get("payload")
         ]
         return chunks
-    except Exception as e:
-        logger.error(f"Fel vid sökning i vector store: {e}")
-        return []
 
+    except Exception as e:
+        logger.error(f"Fel vid search i vector store: {e}")
+        return []
 
 def validate_vector_store_ids(vector_store_ids):
     """Validate vector store IDs and remove all invalid IDs"""
