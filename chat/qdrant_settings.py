@@ -8,15 +8,19 @@ import os
 
 logger = logging.getLogger("rag")
 
+ENV = os.getenv("DJANGO_ENV", "development")
+
+if ENV != "production":
+    load_dotenv()
+
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_URL = os.getenv("QDRANT_URL")
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION")
-VERIFY = "/etc/pki/tls/certs/ca-bundle.crt"  # CPanel cert bundle
+VERIFY = "/etc/pki/tls/certs/ca-bundle.crt" if ENV == "production" else True # CPanel cert bundle
 HEADERS = {
-    "Authorization": f"Bearer {QDRANT_API_KEY}",
+    "api-key": QDRANT_API_KEY,
     "Content-Type": "application/json"
 }
-
 INIT_DONE = False
 
 openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
