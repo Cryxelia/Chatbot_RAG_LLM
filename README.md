@@ -19,6 +19,7 @@ You also need to have a [openai key](https://platform.openai.com/api-keys) and a
 8. Then you have to set `LOCAL_DB_PW` and add to the `.env`
 9. Open MySQL workbench to create a database for you project with the comand `CREATE SCHEMA save_chat_db;`
 10. You also have to migrate the database. To migrate use the comand `python manage.py makemigrations` and `python manage.py migrate`.
+11. you have to run the comand `python manage.py refresh_rag` to upsert points to the qdrant vector store.
 
 ### Running the app local
 Start the app with `python manage.py runserver`
