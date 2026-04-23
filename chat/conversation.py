@@ -74,16 +74,21 @@ def get_conversation_messages(request, chat_id):
 
     return JsonResponse({"messages": messages, "is_archived": conversation.is_archived})
 
+
 def check_conversation_access(conversation, request, write=False):
-    # Checks if the user has read/write access to the conversation.
     if conversation.is_shared and not write:
         return True
 
-    if conversation.user:
-        return request.user.is_authenticated and conversation.user == request.user
+    if conversation.user_id:
+        allowed = request.user.is_authenticated and conversation.user_id == request.user.id
+        return allowed
 
-    return str(conversation.id) in request.session.get("chat_ids", [])
+    allowed = (
+        bool(request.session.session_key)
+        and conversation.session_key == request.session.session_key
+    )
 
+    return allowed
 
 def clone_conversation(source, new_user):
     #  Creates a fork (clone) of an existing conversation,including messages and context.

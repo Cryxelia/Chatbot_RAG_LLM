@@ -93,23 +93,26 @@ def prune_conversation_messages(conversation, max_messages=200, delete_oldest=20
 
 
 def get_or_create_conversation(request, chat_id=None):
-    """
-        Retrieves an existing conversation or creates a new temporary conversation
-        for anonymous users.
-    """
+
     conversation = None
+
+    if not request.user.is_authenticated and not request.session.session_key:
+        request.session.create()
+
     if chat_id:
         conversation = Conversation.objects.filter(id=chat_id).first()
         if not conversation:
             return None, {"error": "Konversationen hittades inte"}, 404
+
         if not check_conversation_access(conversation, request):
             return None, {"error": "Åtkomst nekad"}, 403
-        
+
     if not conversation and request.method == "POST":
         conversation = Conversation.objects.create(
             user=request.user if request.user.is_authenticated else None,
             session_key=None if request.user.is_authenticated else request.session.session_key
         )
+
         ConversationContext.objects.create(
             conversation=conversation,
             domain="general",
@@ -117,12 +120,13 @@ def get_or_create_conversation(request, chat_id=None):
             assumptions={},
             summary=""
         )
+
         if not request.user.is_authenticated:
             chat_ids = request.session.get("chat_ids", [])
             chat_ids.insert(0, str(conversation.id))
             request.session["chat_ids"] = chat_ids[:MAX_SESSION_CHAT_IDS]
-            if not request.session.session_key:
-                request.session.save()
+            request.session.modified = True
+            request.session.save()
 
     return conversation, None, None
 
@@ -139,10 +143,16 @@ def append_ai_message(conversation, ai_message):
     Message.objects.create(conversation=conversation, role="assistant", content=ai_message.get("message", ""))
 
 def update_conversation_context(conversation, user_message, ai_message):
-    # Updates the conversation summary and creates a version.
     if hasattr(conversation, "context"):
         with transaction.atomic():
             ctx = ConversationContext.objects.select_for_update().get(conversation=conversation)
+
+            logger.warning(
+                "CTX UPDATE | conv_id=%s | current_version=%s",
+                conversation.id,
+                ctx.context_version,
+            )
+
             ConversationContextVersion.objects.create(
                 conversation=conversation,
                 version=ctx.context_version,
@@ -152,6 +162,7 @@ def update_conversation_context(conversation, user_message, ai_message):
                 purpose=ctx.purpose,
                 assumptions=ctx.assumptions
             )
+
             ctx.summary = update_context_summary(ctx.summary, user_message, ai_message.get("message", ""))
             ctx.context_version += 1
             ctx.save(update_fields=["summary", "context_version", "updated_at"])
@@ -179,6 +190,7 @@ def append_rag_context(messages, question):
     all_chunks = get_relevant_chunks(question)
     if all_chunks:
         context, total_tokens = "", 0
+        used_chunks = 0
         for chunk in all_chunks:
             chunk_text = chunk["text"]
             chunk_tokens = count_tokens(chunk_text)
@@ -186,7 +198,9 @@ def append_rag_context(messages, question):
                 break
             context += "\n\n" + chunk_text
             total_tokens += chunk_tokens
-        logger.info(f"chunks_used={len(all_chunks)} | total_tokens={total_tokens}")
+            used_chunks += 1
+
+        logger.info(f"chunks_used={used_chunks} | total_tokens={total_tokens}")
         messages.append({"role": "system", "content": "Använd endast följande kontext för att svara korrekt."})
         messages.append({"role": "user", "content": f"KONTEKST:\n{context}\n\nFRÅGA:\n{question}"})
     else:

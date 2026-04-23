@@ -15,14 +15,15 @@ ENV = os.getenv("DJANGO_ENV", "development")
 DEBUG = ENV != "production"
     
 # SESSION COOKIE SETTINGS
-SESSION_COOKIE_HTTPONLY = True #  Protects cookies against JS (XSS)
-SESSION_COOKIE_SECURE = ENV == "production" # Only HTTPS in production
-SESSION_COOKIE_SAMESITE = "None" #Restricts cross-site request cookies
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = ENV == "production"
+SESSION_COOKIE_SAMESITE = "None" if ENV == "production" else "Lax"
 
 # CSRF COOKIE SETTINGS
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SECURE = ENV == "production"
-CSRF_COOKIE_SAMESITE = "None"
+CSRF_COOKIE_SAMESITE = "None" if ENV == "production" else "Lax"
+
 
 # Load .env in development
 if ENV != "production":
@@ -40,6 +41,7 @@ X_FRAME_OPTIONS = 'ALLOWALL'
 CSRF_TRUSTED_ORIGINS = [
     'http://lexiconinteractive.se',
     'http://localhost:8000',
+    'http://127.0.0.1:8000',
     'https://app.cloud.scorm.com',        'https://cloud.scorm.com',
     'https://novitus-lms.com',
     'https://sandbox.lexicon.cloud',
@@ -53,6 +55,7 @@ CSRF_TRUSTED_ORIGINS = [
 CORS_ALLOWED_ORIGINS = [
     'http://lexiconinteractive.se',
     'http://localhost:8000',
+    'http://127.0.0.1:8000',
     'https://app.cloud.scorm.com',        'https://cloud.scorm.com',
     'https://novitus-lms.com',
     'https://sandbox.lexicon.cloud',
@@ -138,7 +141,7 @@ else:
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.mysql',
-            'NAME': 'save_chat_db',
+            'NAME': 'chat_portfolio_db',
             'USER': 'root',
             'PASSWORD': os.getenv("LOCAL_DB_PW"),
             'HOST': 'localhost',

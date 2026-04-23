@@ -19,15 +19,17 @@ def register(request):
 
         if User.objects.filter(username=username).exists():
             return render(request, "register.html", {
-                    "error": "Användaren finns redan"
-                })
-
+                "error": "Användaren finns redan"
+            })
 
         new_user = User.objects.create_user(
             username=username,
             password=password
         )
-        return redirect("login")
+
+        django_login(request, new_user)
+        migrate_anonymous_chats_to_user(request, new_user)
+        return redirect("chat")
 
     return render(request, "register.html")
 
@@ -45,10 +47,11 @@ def login(request):
             })
 
         django_login(request, user)
+
+        migrate_anonymous_chats_to_user(request, user)
         return redirect("chat")
 
     return render(request, "login.html")
-
 
 def logout(request):
     if request.method == "POST":
