@@ -30,7 +30,7 @@ def home(request): # Redirect from start to chat
 def chat(request, chat_id=None): 
     return chat_session(request, chat_id)
 
-def chat_session(request, chat_id=None): # 
+def chat_session(request, chat_id=None): 
     """Main view and handles chat sessions, supporting both temporary and saved conversations."""
     # Get or create conversation based on user + chat_id
     conversation, error, status = get_or_create_conversation(request, chat_id)

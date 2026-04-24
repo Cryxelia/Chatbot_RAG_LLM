@@ -63,7 +63,7 @@ def get_embedding(text, model="text-embedding-3-small"):
             logger.error("Embedding misslyckades efter retries.")
 
         if not isinstance(emb, list):
-            emb = emb.tolist()  # om det är np.array
+            emb = emb.tolist()  
         if not all(isinstance(x, float) for x in emb):
             emb = [float(x) for x in emb]
         
